@@ -43,6 +43,7 @@ export interface AppState {
   sourceImage: HTMLImageElement | null;
   cropOffset: number;                       // 0=top/left, 0.5=center, 1=bottom/right
   zoom: number;                             // 1.0=normal, 2.0=2x zoom-in (centered)
+  stackLayers: 3 | 5 | 7 | 9;              // odd-only: X crops center → main is always visible
   rawSegments: HTMLCanvasElement[];
   processedSegments: HTMLCanvasElement[];   // 1280×720 (texture + blur, NO mosaics)
   stackedSegments: HTMLCanvasElement[];     // 1280×3600 (5-layer penta-stack, mosaics baked)
@@ -57,6 +58,7 @@ export type AppAction =
   | { type: 'SET_SOURCE'; payload: HTMLImageElement }
   | { type: 'SET_CROP_OFFSET'; payload: number }
   | { type: 'SET_ZOOM'; payload: number }
+  | { type: 'SET_STACK_LAYERS'; payload: 3 | 5 | 7 | 9 }
   | { type: 'SET_RAW_SEGMENTS'; payload: HTMLCanvasElement[] }
   | { type: 'SET_PROCESSED_SEGMENTS'; payload: HTMLCanvasElement[] }
   | { type: 'SET_STACKED_SEGMENTS'; payload: HTMLCanvasElement[] }

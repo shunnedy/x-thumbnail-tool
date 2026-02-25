@@ -3,24 +3,29 @@ import { OUTPUT_W, OUTPUT_H, copyCanvas } from './canvasUtils';
 import type { MosaicBlock } from './types';
 
 /**
- * Builds a 1280×3600 Penta-Stack canvas:
- *   Layer 1 (y=0)      → dummy top1
- *   Layer 2 (y=720)    → dummy top2
- *   Layer 3 (y=1440)   → main segment (blur + texture applied, mosaics baked)
- *   Layer 4 (y=2160)   → dummy bottom1
- *   Layer 5 (y=2880)   → dummy bottom2
+ * Builds a 1280×(720*layers) stack canvas for any odd layer count (3, 5, 7, 9, …).
  *
- * X (Twitter) 4-image grid shows the center of each image.
- * Center of 3600px = y=1800 → Layer 3 occupies y=1440–2160 ✓
- * X 16:9 crop at center: height=1280*9/16=720, shows y=1440–2160 = exactly Layer 3 ✓
+ * Layout (example with 5 layers):
+ *   above[0] (y=0)    → dummy
+ *   above[1] (y=720)  → dummy
+ *   MAIN     (y=1440) → main segment (mosaics baked)
+ *   below[0] (y=2160) → dummy
+ *   below[1] (y=2880) → dummy
+ *
+ * X shows the center 16:9 crop → always hits the MAIN layer for any odd N.
+ *
+ * dummies layout: [above0, above1, above2, above3, below0, below1, below2, below3]
+ * Uses first (layers-1)/2 from each half.
  */
-export function buildPentaStack(
+export function buildStack(
   main: HTMLCanvasElement,
-  dummies: DummyType[],  // [top1, top2, bottom1, bottom2]
-  mosaics: MosaicBlock[] = []
+  dummies: DummyType[],
+  mosaics: MosaicBlock[] = [],
+  layers = 5
 ): HTMLCanvasElement {
   const W = OUTPUT_W;
   const H = OUTPUT_H;
+  const half = (layers - 1) / 2; // dummies on each side
 
   // Apply mosaics to a copy of main (keep processedSegments clean)
   let mainCanvas = main;
@@ -39,14 +44,26 @@ export function buildPentaStack(
 
   const out = document.createElement('canvas');
   out.width = W;
-  out.height = H * 5;
+  out.height = H * layers;
   const ctx = out.getContext('2d')!;
 
-  ctx.drawImage(getDummy(dummies[0]), 0,     0, W, H); // Layer 1
-  ctx.drawImage(getDummy(dummies[1]), 0,     H, W, H); // Layer 2
-  ctx.drawImage(mainCanvas,           0, H * 2, W, H); // Layer 3 (MAIN + mosaics)
-  ctx.drawImage(getDummy(dummies[2]), 0, H * 3, W, H); // Layer 4
-  ctx.drawImage(getDummy(dummies[3]), 0, H * 4, W, H); // Layer 5
+  // Above dummies: indices 0..half-1
+  for (let i = 0; i < half; i++) {
+    ctx.drawImage(getDummy(dummies[i]), 0, H * i, W, H);
+  }
+  // Main layer at center
+  ctx.drawImage(mainCanvas, 0, H * half, W, H);
+  // Below dummies: indices 4..4+half-1
+  for (let i = 0; i < half; i++) {
+    ctx.drawImage(getDummy(dummies[4 + i]), 0, H * (half + 1 + i), W, H);
+  }
 
   return out;
 }
+
+/** @deprecated use buildStack */
+export const buildPentaStack = (
+  main: HTMLCanvasElement,
+  dummies: DummyType[],
+  mosaics: MosaicBlock[] = []
+) => buildStack(main, dummies, mosaics, 5);

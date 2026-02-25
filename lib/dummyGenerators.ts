@@ -18,17 +18,16 @@ export function getDummy(type: DummyType): HTMLCanvasElement {
   return canvas;
 }
 
-/** 4 segments × 4 unique dummies each (no intra-segment duplicates) */
+/**
+ * 4 segments × 8 dummies each.
+ * Layout: [above0, above1, above2, above3, below0, below1, below2, below3]
+ * buildStack uses the first (layers-1)/2 from above and (layers-1)/2 from below.
+ * 10 types available → 8 unique picks per segment guaranteed.
+ */
 export function assignDummies(): DummyType[][] {
-  const shuffled = [...ALL_DUMMY_TYPES].sort(() => Math.random() - 0.5);
-  // 10 types → enough for 4 segments × 4 = 16 (wrap with 6 extra, avoid dupes per segment)
-  const extended = [...shuffled, ...shuffled.slice(0, 6)];
-  return [
-    [extended[0], extended[1], extended[2],  extended[3]],
-    [extended[4], extended[5], extended[6],  extended[7]],
-    [extended[8], extended[9], extended[0],  extended[1]],
-    [extended[2], extended[3], extended[4],  extended[5]],
-  ];
+  const pick8 = (): DummyType[] =>
+    [...ALL_DUMMY_TYPES].sort(() => Math.random() - 0.5).slice(0, 8) as DummyType[];
+  return [pick8(), pick8(), pick8(), pick8()];
 }
 
 // ─── generators ──────────────────────────────────────────────────────────

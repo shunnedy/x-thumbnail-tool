@@ -14,7 +14,7 @@ import { drawLShape } from '@/lib/lShapeMask';
 import { bakeBlur } from '@/lib/blurBake';
 import { exportAll } from '@/lib/exportUtils';
 import { assignDummies } from '@/lib/dummyGenerators';
-import { buildPentaStack } from '@/lib/stackCompositor';
+import { buildStack } from '@/lib/stackCompositor';
 
 import type { AppState, AppAction, SegmentId } from '@/lib/types';
 import { DEFAULT_CONFIG, SEGMENT_LABELS_JA, INNER_CORNERS } from '@/lib/types';
@@ -25,6 +25,7 @@ const initialState: AppState = {
   sourceImage: null,
   cropOffset: 0.5,
   zoom: 1,
+  stackLayers: 5,
   rawSegments: [],
   processedSegments: [],
   stackedSegments: [],
@@ -50,6 +51,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, cropOffset: action.payload };
     case 'SET_ZOOM':
       return { ...state, zoom: action.payload };
+    case 'SET_STACK_LAYERS':
+      return { ...state, stackLayers: action.payload };
     case 'SET_RAW_SEGMENTS':
       return { ...state, rawSegments: action.payload };
     case 'SET_PROCESSED_SEGMENTS':
@@ -193,14 +196,14 @@ export default function CompositorApp() {
     };
   }, [state.rawSegments, state.configs]);
 
-  // Build 5-layer stacks when processed segments, dummies, or mosaics change
+  // Build N-layer stacks when processed segments, dummies, mosaics, or layer count change
   useEffect(() => {
     if (state.processedSegments.length < 4 || state.dummyAssignments.length < 4) return;
     const stacked = state.processedSegments.map((canvas, i) =>
-      buildPentaStack(canvas as HTMLCanvasElement, state.dummyAssignments[i], state.mosaics[i])
+      buildStack(canvas as HTMLCanvasElement, state.dummyAssignments[i], state.mosaics[i], state.stackLayers)
     );
     dispatch({ type: 'SET_STACKED_SEGMENTS', payload: stacked });
-  }, [state.processedSegments, state.dummyAssignments, state.mosaics]);
+  }, [state.processedSegments, state.dummyAssignments, state.mosaics, state.stackLayers]);
 
   const handleExport = async () => {
     if (state.stackedSegments.length < 4) return;
@@ -220,7 +223,7 @@ export default function CompositorApp() {
         <h1 className="text-white font-bold text-base">Grid Compositor</h1>
         <span className="text-[#71767b] text-sm">for X / Twitter</span>
         <span className="ml-2 text-[10px] bg-[#1d9bf0]/20 text-[#1d9bf0] px-2 py-0.5 rounded-full font-medium">
-          Penta-Stack
+          {(['Tri','Penta','Hepta','Nona'] as const)[([3,5,7,9] as const).indexOf(state.stackLayers)]}-Stack
         </span>
       </header>
 
@@ -321,10 +324,34 @@ export default function CompositorApp() {
               </div>
             )}
 
-            {/* Dummy reshuffle */}
+            {/* Dummy reshuffle + layer count */}
             {hasImage && (
               <div>
                 <SectionLabel>ダミー画像</SectionLabel>
+
+                {/* Layer count selector */}
+                <div className="mb-2 bg-[#1e2732] rounded-xl border border-[#38444d] p-3">
+                  <p className="text-[#71767b] text-[11px] mb-2">スタック層数（奇数のみ有効）</p>
+                  <div className="flex gap-1">
+                    {([3, 5, 7, 9] as const).map((n) => (
+                      <button
+                        key={n}
+                        onClick={() => dispatch({ type: 'SET_STACK_LAYERS', payload: n })}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                          state.stackLayers === n
+                            ? 'bg-[#1d9bf0] text-white'
+                            : 'border border-[#38444d] text-[#71767b] hover:text-white hover:border-[#71767b]'
+                        }`}
+                      >
+                        {n}層
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[#38444d] text-[10px] mt-1.5">
+                    総高さ {state.stackLayers * 720}px · 上下{(state.stackLayers - 1) / 2}枚ずつ
+                  </p>
+                </div>
+
                 <button
                   onClick={handleReshuffle}
                   className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium border border-[#38444d] text-[#71767b] hover:text-white hover:border-[#71767b] transition-colors"
@@ -333,7 +360,7 @@ export default function CompositorApp() {
                   ダミーをランダム再生成
                 </button>
                 <p className="text-[#38444d] text-[11px] mt-1.5 text-center">
-                  上下2枚ずつ、計4枚のダミー画像を差し替えます
+                  各セグメントのダミー{state.stackLayers - 1}枚を差し替えます
                 </p>
               </div>
             )}
