@@ -24,6 +24,7 @@ import { DEFAULT_CONFIG, SEGMENT_LABELS_JA, INNER_CORNERS } from '@/lib/types';
 const initialState: AppState = {
   sourceImage: null,
   cropOffset: 0.5,
+  zoom: 1,
   rawSegments: [],
   processedSegments: [],
   stackedSegments: [],
@@ -47,6 +48,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       };
     case 'SET_CROP_OFFSET':
       return { ...state, cropOffset: action.payload };
+    case 'SET_ZOOM':
+      return { ...state, zoom: action.payload };
     case 'SET_RAW_SEGMENTS':
       return { ...state, rawSegments: action.payload };
     case 'SET_PROCESSED_SEGMENTS':
@@ -161,12 +164,12 @@ export default function CompositorApp() {
     });
   };
 
-  // Slice source image into 4 raw segments (re-runs when cropOffset changes)
+  // Slice source image into 4 raw segments (re-runs when cropOffset or zoom changes)
   useEffect(() => {
     if (!state.sourceImage) return;
-    const segments = sliceImage(state.sourceImage, state.cropOffset);
+    const segments = sliceImage(state.sourceImage, state.cropOffset, state.zoom);
     dispatch({ type: 'SET_RAW_SEGMENTS', payload: segments });
-  }, [state.sourceImage, state.cropOffset]);
+  }, [state.sourceImage, state.cropOffset, state.zoom]);
 
   // Re-process segments (debounced 150ms) on raw change or config change
   useEffect(() => {
@@ -254,6 +257,25 @@ export default function CompositorApp() {
                     value={Math.round(state.cropOffset * 100)}
                     onChange={(e) =>
                       dispatch({ type: 'SET_CROP_OFFSET', payload: Number(e.target.value) / 100 })
+                    }
+                    className="w-full h-1 accent-[#1d9bf0] cursor-pointer"
+                  />
+                </div>
+              )}
+
+              {/* Zoom — always shown when image is loaded */}
+              {hasImage && (
+                <div className="mt-2 bg-[#1e2732] rounded-xl border border-[#38444d] p-3">
+                  <div className="flex justify-between text-[11px] text-[#71767b] mb-1">
+                    <span>ズーム倍率</span>
+                    <span className="text-[#e7e9ea]">{state.zoom.toFixed(1)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={100} max={400} step={10}
+                    value={Math.round(state.zoom * 100)}
+                    onChange={(e) =>
+                      dispatch({ type: 'SET_ZOOM', payload: Number(e.target.value) / 100 })
                     }
                     className="w-full h-1 accent-[#1d9bf0] cursor-pointer"
                   />

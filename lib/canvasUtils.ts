@@ -6,7 +6,7 @@ export const OUTPUT_H = 720;
  * Takes a 16:9 crop using the given offset (0=top/left, 0.5=center, 1=bottom/right).
  * Each output canvas is OUTPUT_W × OUTPUT_H (1280×720).
  */
-export function sliceImage(img: HTMLImageElement, cropOffset = 0.5): HTMLCanvasElement[] {
+export function sliceImage(img: HTMLImageElement, cropOffset = 0.5, zoom = 1.0): HTMLCanvasElement[] {
   const W = img.naturalWidth;
   const H = img.naturalHeight;
 
@@ -29,8 +29,14 @@ export function sliceImage(img: HTMLImageElement, cropOffset = 0.5): HTMLCanvasE
     cropX = 0;
     cropY = (H - cropH) * cropOffset;
   }
-  const halfW = cropW / 2;
-  const halfH = cropH / 2;
+
+  // Apply zoom: shrink the sampled area from the center of the 16:9 crop
+  const zoomW = cropW / zoom;
+  const zoomH = cropH / zoom;
+  const zoomX = cropX + (cropW - zoomW) / 2;
+  const zoomY = cropY + (cropH - zoomH) / 2;
+  const halfW = zoomW / 2;
+  const halfH = zoomH / 2;
 
   // [col, row] for each segment: 0=TL, 1=TR, 2=BL, 3=BR
   const quadrants: [number, number][] = [
@@ -47,7 +53,7 @@ export function sliceImage(img: HTMLImageElement, cropOffset = 0.5): HTMLCanvasE
     const ctx = canvas.getContext('2d')!;
     ctx.drawImage(
       img,
-      cropX + col * halfW, cropY + row * halfH, // source xy
+      zoomX + col * halfW, zoomY + row * halfH, // source xy
       halfW, halfH,                               // source size
       0, 0,                                       // dest xy
       OUTPUT_W, OUTPUT_H                          // dest size
