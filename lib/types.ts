@@ -28,6 +28,20 @@ export const DEFAULT_CONFIG: SegmentConfig = {
   textureArmPx: 100,
 };
 
+export interface FilterConfig {
+  grainIntensity: number;  // 0–100
+  colorTemp: number;       // -100 (cool/blue) to +100 (warm/orange)
+  saturation: number;      // -100 (grey) to +100 (vivid)
+  edgeSoftening: number;   // 0–100
+}
+
+export const DEFAULT_FILTER_CONFIG: FilterConfig = {
+  grainIntensity: 0,
+  colorTemp: 0,
+  saturation: 0,
+  edgeSoftening: 0,
+};
+
 export interface MosaicBlock {
   id: string;    // unique id for key/removal
   x: number;     // normalized 0-1
@@ -44,10 +58,14 @@ export interface AppState {
   stackLayers: 3 | 5 | 7 | 9;              // odd-only: X crops center → main is always visible
   rawSegments: HTMLCanvasElement[];
   processedSegments: HTMLCanvasElement[];   // 1280×720 (texture + blur, NO mosaics)
+  filteredSegments: HTMLCanvasElement[];    // 1280×720 (processed + aesthetic filters)
   stackedSegments: HTMLCanvasElement[];     // 1280×3600 (5-layer penta-stack, mosaics baked)
   dummyAssignments: number[][];             // [4 segments][photo IDs]
   mosaics: [MosaicBlock[], MosaicBlock[], MosaicBlock[], MosaicBlock[]];
   configs: [SegmentConfig, SegmentConfig, SegmentConfig, SegmentConfig];
+  filterMode: 'global' | 'per-segment';
+  globalFilter: FilterConfig;
+  segmentFilters: [FilterConfig, FilterConfig, FilterConfig, FilterConfig];
   isProcessing: boolean;
   isExporting: boolean;
 }
@@ -60,12 +78,16 @@ export type AppAction =
   | { type: 'SET_STACK_LAYERS'; payload: 3 | 5 | 7 | 9 }
   | { type: 'SET_RAW_SEGMENTS'; payload: HTMLCanvasElement[] }
   | { type: 'SET_PROCESSED_SEGMENTS'; payload: HTMLCanvasElement[] }
+  | { type: 'SET_FILTERED_SEGMENTS'; payload: HTMLCanvasElement[] }
   | { type: 'SET_STACKED_SEGMENTS'; payload: HTMLCanvasElement[] }
   | { type: 'SET_DUMMY_ASSIGNMENTS'; payload: number[][] }
   | { type: 'ADD_MOSAIC'; payload: { id: SegmentId; block: MosaicBlock } }
   | { type: 'REMOVE_MOSAIC'; payload: { id: SegmentId; blockId: string } }
   | { type: 'CLEAR_MOSAICS'; payload: SegmentId }
   | { type: 'UPDATE_CONFIG'; payload: { id: SegmentId; config: Partial<SegmentConfig> } }
+  | { type: 'SET_FILTER_MODE'; payload: 'global' | 'per-segment' }
+  | { type: 'SET_GLOBAL_FILTER'; payload: Partial<FilterConfig> }
+  | { type: 'SET_SEGMENT_FILTER'; payload: { id: SegmentId; filter: Partial<FilterConfig> } }
   | { type: 'SET_PROCESSING'; payload: boolean }
   | { type: 'SET_EXPORTING'; payload: boolean }
   | { type: 'RESET' };

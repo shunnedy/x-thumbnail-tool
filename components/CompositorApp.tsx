@@ -5,6 +5,7 @@ import { Grid2X2, Shuffle } from 'lucide-react';
 
 import { DropZone } from './DropZone';
 import { SegmentCard } from './SegmentCard';
+import { FilterPanel } from './FilterPanel';
 import { GridPreview } from './GridPreview';
 import { ExportButton } from './ExportButton';
 
@@ -15,9 +16,10 @@ import { bakeBlur } from '@/lib/blurBake';
 import { exportAll } from '@/lib/exportUtils';
 import { assignDummies, assignDummiesByColor, preloadDummies } from '@/lib/dummyGenerators';
 import { buildStack } from '@/lib/stackCompositor';
+import { applyFilters } from '@/lib/filterUtils';
 
 import type { AppState, AppAction, SegmentId } from '@/lib/types';
-import { DEFAULT_CONFIG, SEGMENT_LABELS_JA, INNER_CORNERS } from '@/lib/types';
+import { DEFAULT_CONFIG, DEFAULT_FILTER_CONFIG, SEGMENT_LABELS_JA, INNER_CORNERS } from '@/lib/types';
 
 // ─────────────────────────────────────── state ──
 
@@ -29,10 +31,14 @@ const initialState: AppState = {
   stackLayers: 5,
   rawSegments: [],
   processedSegments: [],
+  filteredSegments: [],
   stackedSegments: [],
   dummyAssignments: [],
   mosaics: [[], [], [], []],
   configs: [DEFAULT_CONFIG, DEFAULT_CONFIG, DEFAULT_CONFIG, DEFAULT_CONFIG],
+  filterMode: 'global',
+  globalFilter: DEFAULT_FILTER_CONFIG,
+  segmentFilters: [DEFAULT_FILTER_CONFIG, DEFAULT_FILTER_CONFIG, DEFAULT_FILTER_CONFIG, DEFAULT_FILTER_CONFIG],
   isProcessing: false,
   isExporting: false,
 };
@@ -45,6 +51,7 @@ function reducer(state: AppState, action: AppAction): AppState {
         sourceImage: action.payload,
         rawSegments: [],
         processedSegments: [],
+        filteredSegments: [],
         stackedSegments: [],
         mosaics: [[], [], [], []],
       };
@@ -60,6 +67,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, rawSegments: action.payload };
     case 'SET_PROCESSED_SEGMENTS':
       return { ...state, processedSegments: action.payload, isProcessing: false };
+    case 'SET_FILTERED_SEGMENTS':
+      return { ...state, filteredSegments: action.payload };
     case 'SET_STACKED_SEGMENTS':
       return { ...state, stackedSegments: action.payload };
     case 'SET_DUMMY_ASSIGNMENTS':
@@ -83,6 +92,15 @@ function reducer(state: AppState, action: AppAction): AppState {
       const next = [...state.configs] as AppState['configs'];
       next[action.payload.id] = { ...next[action.payload.id], ...action.payload.config };
       return { ...state, configs: next };
+    }
+    case 'SET_FILTER_MODE':
+      return { ...state, filterMode: action.payload };
+    case 'SET_GLOBAL_FILTER':
+      return { ...state, globalFilter: { ...state.globalFilter, ...action.payload } };
+    case 'SET_SEGMENT_FILTER': {
+      const next = [...state.segmentFilters] as AppState['segmentFilters'];
+      next[action.payload.id] = { ...next[action.payload.id], ...action.payload.filter };
+      return { ...state, segmentFilters: next };
     }
     case 'SET_PROCESSING':
       return { ...state, isProcessing: action.payload };
@@ -128,6 +146,7 @@ export default function CompositorApp() {
   const [dummiesReady, setDummiesReady] = useState(false);
   const prevUrlRef = useRef('');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const filterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const colorAssignedRef = useRef(false); // true after first color-based assignment for current image
 
   // Preload all dummy animal photos; rebuild stacks once loading completes
@@ -226,14 +245,31 @@ export default function CompositorApp() {
     });
   }, [state.processedSegments]);
 
-  // Build N-layer stacks when processed segments, dummies, mosaics, or layer count change
+  // Apply aesthetic filters (debounced 80ms) to produce filteredSegments
   useEffect(() => {
-    if (state.processedSegments.length < 4 || state.dummyAssignments.length < 4) return;
-    const stacked = state.processedSegments.map((canvas, i) =>
-      buildStack(canvas as HTMLCanvasElement, state.dummyAssignments[i], state.mosaics[i], state.stackLayers)
+    if (state.processedSegments.length === 0) return;
+    if (filterTimerRef.current) clearTimeout(filterTimerRef.current);
+    filterTimerRef.current = setTimeout(() => {
+      const filtered = (state.processedSegments as HTMLCanvasElement[]).map((canvas, i) => {
+        const config =
+          state.filterMode === 'global'
+            ? state.globalFilter
+            : state.segmentFilters[i as SegmentId];
+        return applyFilters(canvas, config);
+      });
+      dispatch({ type: 'SET_FILTERED_SEGMENTS', payload: filtered });
+    }, 80);
+    return () => { if (filterTimerRef.current) clearTimeout(filterTimerRef.current); };
+  }, [state.processedSegments, state.filterMode, state.globalFilter, state.segmentFilters]);
+
+  // Build N-layer stacks when filteredSegments, dummies, mosaics, or layer count change
+  useEffect(() => {
+    if (state.filteredSegments.length < 4 || state.dummyAssignments.length < 4) return;
+    const stacked = (state.filteredSegments as HTMLCanvasElement[]).map((canvas, i) =>
+      buildStack(canvas, state.dummyAssignments[i], state.mosaics[i], state.stackLayers)
     );
     dispatch({ type: 'SET_STACKED_SEGMENTS', payload: stacked });
-  }, [state.processedSegments, state.dummyAssignments, state.mosaics, state.stackLayers, dummiesReady]);
+  }, [state.filteredSegments, state.dummyAssignments, state.mosaics, state.stackLayers, dummiesReady]);
 
   const handleExport = async () => {
     if (state.stackedSegments.length < 4) return;
@@ -372,6 +408,23 @@ export default function CompositorApp() {
               </div>
             )}
 
+            {/* Aesthetic filters */}
+            {hasImage && (
+              <div>
+                <SectionLabel>ビジュアルエフェクト</SectionLabel>
+                <FilterPanel
+                  filterMode={state.filterMode}
+                  globalFilter={state.globalFilter}
+                  segmentFilters={state.segmentFilters}
+                  onFilterModeChange={(mode) => dispatch({ type: 'SET_FILTER_MODE', payload: mode })}
+                  onGlobalFilterChange={(partial) => dispatch({ type: 'SET_GLOBAL_FILTER', payload: partial })}
+                  onSegmentFilterChange={(id, partial) =>
+                    dispatch({ type: 'SET_SEGMENT_FILTER', payload: { id, filter: partial } })
+                  }
+                />
+              </div>
+            )}
+
             {/* Dummy reshuffle + layer count */}
             {hasImage && (
               <div>
@@ -429,7 +482,11 @@ export default function CompositorApp() {
         {/* Right panel */}
         <main className="flex-1 overflow-y-auto bg-black flex justify-center p-6 pt-8">
           <GridPreview
-            processedSegments={state.processedSegments as HTMLCanvasElement[]}
+            processedSegments={
+              (state.filteredSegments.length >= 4
+                ? state.filteredSegments
+                : state.processedSegments) as HTMLCanvasElement[]
+            }
             stackedSegments={state.stackedSegments as HTMLCanvasElement[]}
             isProcessing={state.isProcessing}
             mosaics={state.mosaics}
