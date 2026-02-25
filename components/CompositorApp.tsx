@@ -125,12 +125,13 @@ export default function CompositorApp() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [thumbnailUrl, setThumbnailUrl] = useState('');
   const [globalBlur, setGlobalBlur] = useState(0);
+  const [dummiesReady, setDummiesReady] = useState(false);
   const prevUrlRef = useRef('');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const colorAssignedRef = useRef(false); // true after first color-based assignment for current image
 
-  // Preload all dummy animal photos in the background at startup
-  useEffect(() => { preloadDummies(); }, []);
+  // Preload all dummy animal photos; rebuild stacks once loading completes
+  useEffect(() => { preloadDummies().then(() => setDummiesReady(true)); }, []);
 
   // Cleanup object URL on unmount
   useEffect(() => {
@@ -232,7 +233,7 @@ export default function CompositorApp() {
       buildStack(canvas as HTMLCanvasElement, state.dummyAssignments[i], state.mosaics[i], state.stackLayers)
     );
     dispatch({ type: 'SET_STACKED_SEGMENTS', payload: stacked });
-  }, [state.processedSegments, state.dummyAssignments, state.mosaics, state.stackLayers]);
+  }, [state.processedSegments, state.dummyAssignments, state.mosaics, state.stackLayers, dummiesReady]);
 
   const handleExport = async () => {
     if (state.stackedSegments.length < 4) return;
