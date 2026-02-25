@@ -1,18 +1,34 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MessageCircle, Repeat2, Heart, BarChart3, Share, Loader2, Twitter, Layers } from 'lucide-react';
+import { MessageCircle, Repeat2, Heart, BarChart3, Share, Loader2, Twitter, Layers, Pencil } from 'lucide-react';
+import type { MosaicBlock, SegmentId } from '@/lib/types';
+import { SEGMENT_LABELS_JA } from '@/lib/types';
+import { MosaicEditor } from './MosaicEditor';
 
 interface GridPreviewProps {
   processedSegments: HTMLCanvasElement[];
   stackedSegments: HTMLCanvasElement[];
   isProcessing: boolean;
+  mosaics: [MosaicBlock[], MosaicBlock[], MosaicBlock[], MosaicBlock[]];
+  onAddMosaic: (segmentId: SegmentId, block: MosaicBlock) => void;
+  onRemoveMosaic: (segmentId: SegmentId, blockId: string) => void;
+  onClearMosaics: (segmentId: SegmentId) => void;
 }
 
-export function GridPreview({ processedSegments, stackedSegments, isProcessing }: GridPreviewProps) {
+export function GridPreview({
+  processedSegments,
+  stackedSegments,
+  isProcessing,
+  mosaics,
+  onAddMosaic,
+  onRemoveMosaic,
+  onClearMosaics,
+}: GridPreviewProps) {
   const [tab, setTab] = useState<'x' | 'stack'>('x');
   const [xUrls, setXUrls] = useState<string[]>(['', '', '', '']);
   const [stackUrls, setStackUrls] = useState<string[]>(['', '', '', '']);
+  const [editingSegment, setEditingSegment] = useState<SegmentId | null>(null);
 
   const hasProcessed = processedSegments.length >= 4;
   const hasStacked = stackedSegments.length >= 4;
@@ -32,11 +48,10 @@ export function GridPreview({ processedSegments, stackedSegments, isProcessing }
   // Stack preview: scaled-down 5-layer images (1280×3600 → 160×450)
   useEffect(() => {
     if (!hasStacked) return;
-    const W = 160, H = 450;
     const urls = stackedSegments.map((stack) => {
       const p = document.createElement('canvas');
-      p.width = W; p.height = H;
-      p.getContext('2d')!.drawImage(stack, 0, 0, W, H);
+      p.width = 160; p.height = 450;
+      p.getContext('2d')!.drawImage(stack, 0, 0, 160, 450);
       return p.toDataURL('image/jpeg', 0.82);
     });
     setStackUrls(urls);
@@ -69,9 +84,27 @@ export function GridPreview({ processedSegments, stackedSegments, isProcessing }
       </div>
 
       {tab === 'x' ? (
-        <XTimelineView imageUrls={xUrls} hasImages={hasProcessed} />
+        <XTimelineView
+          imageUrls={xUrls}
+          hasImages={hasProcessed}
+          mosaics={mosaics}
+          onEditSegment={(id) => setEditingSegment(id)}
+        />
       ) : (
         <StackView stackUrls={stackUrls} hasImages={hasStacked} />
+      )}
+
+      {/* Mosaic Editor modal */}
+      {editingSegment !== null && processedSegments[editingSegment] && (
+        <MosaicEditor
+          segmentId={editingSegment}
+          segmentCanvas={processedSegments[editingSegment]}
+          mosaics={mosaics[editingSegment]}
+          onAdd={(block) => onAddMosaic(editingSegment, block)}
+          onRemove={(blockId) => onRemoveMosaic(editingSegment, blockId)}
+          onClear={() => onClearMosaics(editingSegment)}
+          onClose={() => setEditingSegment(null)}
+        />
       )}
     </div>
   );
@@ -79,7 +112,19 @@ export function GridPreview({ processedSegments, stackedSegments, isProcessing }
 
 // ─── X Timeline View ─────────────────────────────────────────────────────
 
-function XTimelineView({ imageUrls, hasImages }: { imageUrls: string[]; hasImages: boolean }) {
+interface XTimelineViewProps {
+  imageUrls: string[];
+  hasImages: boolean;
+  mosaics: [MosaicBlock[], MosaicBlock[], MosaicBlock[], MosaicBlock[]];
+  onEditSegment: (id: SegmentId) => void;
+}
+
+function XTimelineView({ imageUrls, hasImages, mosaics, onEditSegment }: XTimelineViewProps) {
+  // X DOM layout: flex-col outer, 2 flex-row rows
+  // Row 1: photo[0]=TL (left, marginRight:2px), photo[1]=TR (right)
+  // Row 2: photo[2]=BL (left, marginRight:2px), photo[3]=BR (right)
+  const rows: [SegmentId, SegmentId][] = [[0, 1], [2, 3]];
+
   return (
     <div>
       <div className="bg-[#15202b] rounded-2xl border border-[#38444d]">
@@ -96,11 +141,7 @@ function XTimelineView({ imageUrls, hasImages }: { imageUrls: string[]; hasImage
             </div>
           </div>
 
-          {/*
-            X 4-image grid: 16:9 overall container
-            Left column:  photo[0]=TL (top), photo[2]=BL (bottom)
-            Right column: photo[1]=TR (top), photo[3]=BR (bottom)
-          */}
+          {/* 2×2 grid — row-based layout matching actual X DOM */}
           <div
             className="rounded-2xl overflow-hidden"
             style={{ position: 'relative', paddingBottom: '56.25%', background: '#38444d' }}
@@ -110,50 +151,83 @@ function XTimelineView({ imageUrls, hasImages }: { imageUrls: string[]; hasImage
                 position: 'absolute',
                 inset: 0,
                 display: 'flex',
-                gap: '2px',
+                flexDirection: 'column',
               }}
             >
-              {/* Left column */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                {[0, 2].map((i) => (
-                  <div key={i} style={{ flex: 1, overflow: 'hidden', background: '#253341' }}>
-                    {hasImages && imageUrls[i] ? (
-                      <img
-                        src={imageUrls[i]}
-                        alt={`Segment ${i + 1}`}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                      />
-                    ) : (
-                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span className="text-[#38444d] text-2xl font-bold">{i === 0 ? 1 : 3}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+              {rows.map(([leftIdx, rightIdx], rowIndex) => (
+                <div
+                  key={rowIndex}
+                  style={{
+                    display: 'flex',
+                    flex: 1,
+                    marginTop: rowIndex > 0 ? '2px' : 0,
+                  }}
+                >
+                  {([leftIdx, rightIdx] as SegmentId[]).map((segIdx, colIndex) => (
+                    <div
+                      key={segIdx}
+                      style={{
+                        flex: 1,
+                        position: 'relative',
+                        overflow: 'hidden',
+                        background: '#253341',
+                        marginRight: colIndex === 0 ? '2px' : 0,
+                      }}
+                    >
+                      {hasImages && imageUrls[segIdx] ? (
+                        <>
+                          <img
+                            src={imageUrls[segIdx]}
+                            alt={`Segment ${segIdx + 1}`}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                          />
 
-              {/* Right column */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                {[1, 3].map((i) => (
-                  <div key={i} style={{ flex: 1, overflow: 'hidden', background: '#253341' }}>
-                    {hasImages && imageUrls[i] ? (
-                      <img
-                        src={imageUrls[i]}
-                        alt={`Segment ${i + 1}`}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                      />
-                    ) : (
-                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span className="text-[#38444d] text-2xl font-bold">{i === 1 ? 2 : 4}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+                          {/* Mosaic overlays (CSS, not baked) */}
+                          {mosaics[segIdx].map((block) => (
+                            <div
+                              key={block.id}
+                              style={{
+                                position: 'absolute',
+                                left: `${block.x * 100}%`,
+                                top: `${block.y * 100}%`,
+                                width: `${block.w * 100}%`,
+                                height: `${block.h * 100}%`,
+                                background: 'rgba(255,255,255,0.95)',
+                                boxShadow: '0 0 12px rgba(255,255,255,0.8)',
+                                pointerEvents: 'none',
+                              }}
+                            />
+                          ))}
+
+                          {/* Edit button overlay */}
+                          <button
+                            onClick={() => onEditSegment(segIdx)}
+                            style={{ position: 'absolute', inset: 0 }}
+                            className="group"
+                            title={`${SEGMENT_LABELS_JA[segIdx]}を編集`}
+                          >
+                            {/* Edit badge — bottom-right corner */}
+                            <div
+                              className="absolute bottom-1 right-1 bg-black/60 rounded px-1 py-0.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Pencil className="h-2.5 w-2.5 text-white" />
+                              <span className="text-white text-[9px] font-medium">編集</span>
+                            </div>
+                          </button>
+                        </>
+                      ) : (
+                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <span className="text-[#38444d] text-2xl font-bold">{segIdx + 1}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Engagement */}
+          {/* Engagement bar */}
           <div className="flex items-center mt-3 text-[#71767b]" style={{ gap: '20px' }}>
             <EngageBtn icon={<MessageCircle className="h-[18px] w-[18px]" />} count="12" hover="hover:text-[#1d9bf0]" />
             <EngageBtn icon={<Repeat2 className="h-[18px] w-[18px]" />} count="34" hover="hover:text-green-400" />
@@ -173,20 +247,25 @@ function XTimelineView({ imageUrls, hasImages }: { imageUrls: string[]; hasImage
       )}
 
       {hasImages && (
-        <div className="mt-4 bg-[#1e2732] rounded-xl border border-[#38444d] p-3">
-          <p className="text-[#71767b] text-xs font-semibold uppercase tracking-widest mb-2">投稿順</p>
-          <div className="grid grid-cols-4 gap-2">
-            {[1, 2, 3, 4].map((n) => (
-              <div key={n} className="text-center">
-                <div className="w-full aspect-square bg-[#253341] rounded-lg flex items-center justify-center text-[#1d9bf0] font-bold text-sm">{n}</div>
-                <span className="text-[#71767b] text-[10px] mt-1 block">{['左上','右上','左下','右下'][n-1]}</span>
-              </div>
-            ))}
-          </div>
-          <p className="text-[#71767b] text-[11px] mt-2">
-            X では 1→4 の順に添付し一括投稿してください
+        <>
+          <p className="text-center text-[#71767b] text-[11px] mt-3">
+            各セグメントをクリックするとモザイク編集モードが開きます
           </p>
-        </div>
+          <div className="mt-3 bg-[#1e2732] rounded-xl border border-[#38444d] p-3">
+            <p className="text-[#71767b] text-xs font-semibold uppercase tracking-widest mb-2">投稿順</p>
+            <div className="grid grid-cols-4 gap-2">
+              {[1, 2, 3, 4].map((n) => (
+                <div key={n} className="text-center">
+                  <div className="w-full aspect-square bg-[#253341] rounded-lg flex items-center justify-center text-[#1d9bf0] font-bold text-sm">{n}</div>
+                  <span className="text-[#71767b] text-[10px] mt-1 block">{['左上', '右上', '左下', '右下'][n - 1]}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-[#71767b] text-[11px] mt-2">
+              X では 1→4 の順に添付し一括投稿してください
+            </p>
+          </div>
+        </>
       )}
     </div>
   );
@@ -273,7 +352,6 @@ function StackView({ stackUrls, hasImages }: { stackUrls: string[]; hasImages: b
         </p>
       )}
 
-      {/* Dimension info */}
       {hasImages && (
         <div className="mt-4 bg-[#1e2732] rounded-xl border border-[#38444d] p-3 text-center">
           <p className="text-[#71767b] text-xs">

@@ -3,30 +3,32 @@ export const OUTPUT_H = 720;
 
 /**
  * Slices the source image into 4 equal quadrants (TL, TR, BL, BR).
- * Takes a 16:9 center crop first, then divides into 4.
+ * Takes a 16:9 crop using the given offset (0=top/left, 0.5=center, 1=bottom/right).
  * Each output canvas is OUTPUT_W × OUTPUT_H (1280×720).
  */
-export function sliceImage(img: HTMLImageElement): HTMLCanvasElement[] {
+export function sliceImage(img: HTMLImageElement, cropOffset = 0.5): HTMLCanvasElement[] {
   const W = img.naturalWidth;
   const H = img.naturalHeight;
 
-  // Crop to 16:9 from center
+  // Crop to 16:9 using the provided offset
   const targetRatio = 16 / 9;
   const srcRatio = W / H;
 
   let cropW: number, cropH: number;
+  let cropX: number, cropY: number;
   if (srcRatio > targetRatio) {
-    // Wider than 16:9 → crop sides
+    // Wider than 16:9 → crop sides; offset controls left↔right
     cropH = H;
     cropW = H * targetRatio;
+    cropX = (W - cropW) * cropOffset;
+    cropY = 0;
   } else {
-    // Taller than 16:9 → crop top/bottom
+    // Taller than 16:9 → crop top/bottom; offset controls top↔bottom
     cropW = W;
     cropH = W / targetRatio;
+    cropX = 0;
+    cropY = (H - cropH) * cropOffset;
   }
-
-  const cropX = (W - cropW) / 2;
-  const cropY = (H - cropH) / 2;
   const halfW = cropW / 2;
   const halfH = cropH / 2;
 

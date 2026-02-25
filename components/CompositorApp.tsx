@@ -23,10 +23,12 @@ import { DEFAULT_CONFIG, SEGMENT_LABELS_JA, INNER_CORNERS } from '@/lib/types';
 
 const initialState: AppState = {
   sourceImage: null,
+  cropOffset: 0.5,
   rawSegments: [],
   processedSegments: [],
   stackedSegments: [],
   dummyAssignments: [],
+  mosaics: [[], [], [], []],
   configs: [DEFAULT_CONFIG, DEFAULT_CONFIG, DEFAULT_CONFIG, DEFAULT_CONFIG],
   isProcessing: false,
   isExporting: false,
@@ -41,7 +43,10 @@ function reducer(state: AppState, action: AppAction): AppState {
         rawSegments: [],
         processedSegments: [],
         stackedSegments: [],
+        mosaics: [[], [], [], []],
       };
+    case 'SET_CROP_OFFSET':
+      return { ...state, cropOffset: action.payload };
     case 'SET_RAW_SEGMENTS':
       return { ...state, rawSegments: action.payload };
     case 'SET_PROCESSED_SEGMENTS':
@@ -50,6 +55,21 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, stackedSegments: action.payload };
     case 'SET_DUMMY_ASSIGNMENTS':
       return { ...state, dummyAssignments: action.payload };
+    case 'ADD_MOSAIC': {
+      const next = [...state.mosaics] as AppState['mosaics'];
+      next[action.payload.id] = [...next[action.payload.id], action.payload.block];
+      return { ...state, mosaics: next };
+    }
+    case 'REMOVE_MOSAIC': {
+      const next = [...state.mosaics] as AppState['mosaics'];
+      next[action.payload.id] = next[action.payload.id].filter(b => b.id !== action.payload.blockId);
+      return { ...state, mosaics: next };
+    }
+    case 'CLEAR_MOSAICS': {
+      const next = [...state.mosaics] as AppState['mosaics'];
+      next[action.payload] = [];
+      return { ...state, mosaics: next };
+    }
     case 'UPDATE_CONFIG': {
       const next = [...state.configs] as AppState['configs'];
       next[action.payload.id] = { ...next[action.payload.id], ...action.payload.config };
@@ -95,6 +115,7 @@ async function processAll(
 export default function CompositorApp() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [thumbnailUrl, setThumbnailUrl] = useState('');
+  const [globalBlur, setGlobalBlur] = useState(0);
   const prevUrlRef = useRef('');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -105,18 +126,27 @@ export default function CompositorApp() {
     };
   }, []);
 
+  // Derived: which direction needs cropping (null = already 16:9)
+  const cropDirection = state.sourceImage ? (() => {
+    const ratio = state.sourceImage.naturalWidth / state.sourceImage.naturalHeight;
+    if (Math.abs(ratio - 16 / 9) < 0.005) return null;
+    return ratio > 16 / 9 ? 'horizontal' : 'vertical';
+  })() : null;
+
   const handleImageLoad = (img: HTMLImageElement, url: string) => {
     if (prevUrlRef.current) URL.revokeObjectURL(prevUrlRef.current);
     prevUrlRef.current = url;
     setThumbnailUrl(url);
     dispatch({ type: 'SET_DUMMY_ASSIGNMENTS', payload: assignDummies() });
     dispatch({ type: 'SET_SOURCE', payload: img });
+    dispatch({ type: 'SET_CROP_OFFSET', payload: 0.5 });
   };
 
   const handleReset = () => {
     if (prevUrlRef.current) URL.revokeObjectURL(prevUrlRef.current);
     prevUrlRef.current = '';
     setThumbnailUrl('');
+    setGlobalBlur(0);
     dispatch({ type: 'RESET' });
   };
 
@@ -124,12 +154,19 @@ export default function CompositorApp() {
     dispatch({ type: 'SET_DUMMY_ASSIGNMENTS', payload: assignDummies() });
   };
 
-  // Slice source image into 4 raw segments
+  const handleGlobalBlur = (v: number) => {
+    setGlobalBlur(v);
+    ([0, 1, 2, 3] as SegmentId[]).forEach(id => {
+      dispatch({ type: 'UPDATE_CONFIG', payload: { id, config: { blurPx: v } } });
+    });
+  };
+
+  // Slice source image into 4 raw segments (re-runs when cropOffset changes)
   useEffect(() => {
     if (!state.sourceImage) return;
-    const segments = sliceImage(state.sourceImage);
+    const segments = sliceImage(state.sourceImage, state.cropOffset);
     dispatch({ type: 'SET_RAW_SEGMENTS', payload: segments });
-  }, [state.sourceImage]);
+  }, [state.sourceImage, state.cropOffset]);
 
   // Re-process segments (debounced 150ms) on raw change or config change
   useEffect(() => {
@@ -153,14 +190,14 @@ export default function CompositorApp() {
     };
   }, [state.rawSegments, state.configs]);
 
-  // Build 5-layer stacks when processed segments or dummies change
+  // Build 5-layer stacks when processed segments, dummies, or mosaics change
   useEffect(() => {
     if (state.processedSegments.length < 4 || state.dummyAssignments.length < 4) return;
     const stacked = state.processedSegments.map((canvas, i) =>
-      buildPentaStack(canvas as HTMLCanvasElement, state.dummyAssignments[i])
+      buildPentaStack(canvas as HTMLCanvasElement, state.dummyAssignments[i], state.mosaics[i])
     );
     dispatch({ type: 'SET_STACKED_SEGMENTS', payload: stacked });
-  }, [state.processedSegments, state.dummyAssignments]);
+  }, [state.processedSegments, state.dummyAssignments, state.mosaics]);
 
   const handleExport = async () => {
     if (state.stackedSegments.length < 4) return;
@@ -197,12 +234,54 @@ export default function CompositorApp() {
                 thumbnailUrl={thumbnailUrl}
                 onReset={handleReset}
               />
+
+              {/* Crop offset — only when image needs cropping */}
+              {hasImage && cropDirection && (
+                <div className="mt-2 bg-[#1e2732] rounded-xl border border-[#38444d] p-3">
+                  <div className="flex justify-between text-[11px] text-[#71767b] mb-1">
+                    <span>
+                      {cropDirection === 'horizontal' ? '← 左右のトリミング位置 →' : '↑ 上下のトリミング位置 ↓'}
+                    </span>
+                    <span className="text-[#e7e9ea]">
+                      {cropDirection === 'horizontal'
+                        ? ['左', '中央', '右'][Math.round(state.cropOffset * 2)]
+                        : ['上', '中央', '下'][Math.round(state.cropOffset * 2)]}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0} max={100} step={1}
+                    value={Math.round(state.cropOffset * 100)}
+                    onChange={(e) =>
+                      dispatch({ type: 'SET_CROP_OFFSET', payload: Number(e.target.value) / 100 })
+                    }
+                    className="w-full h-1 accent-[#1d9bf0] cursor-pointer"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Segment cards */}
             {hasImage && (
               <div>
                 <SectionLabel>セグメント設定</SectionLabel>
+
+                {/* Global blur */}
+                <div className="mb-2 bg-[#1e2732] rounded-xl border border-[#38444d] p-3">
+                  <div className="flex justify-between text-[11px] mb-1">
+                    <span className="text-[#1d9bf0] font-semibold">全体まとめてブラー</span>
+                    <span className="text-[#e7e9ea]">{globalBlur}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0} max={20} step={1}
+                    value={globalBlur}
+                    onChange={(e) => handleGlobalBlur(Number(e.target.value))}
+                    className="w-full h-1 accent-[#1d9bf0] cursor-pointer"
+                  />
+                  <p className="text-[#38444d] text-[10px] mt-1">全セグメントのブラー値を一括設定</p>
+                </div>
+
                 <div className="space-y-2">
                   {([0, 1, 2, 3] as SegmentId[]).map((id) => (
                     <SegmentCard
@@ -256,6 +335,10 @@ export default function CompositorApp() {
             processedSegments={state.processedSegments as HTMLCanvasElement[]}
             stackedSegments={state.stackedSegments as HTMLCanvasElement[]}
             isProcessing={state.isProcessing}
+            mosaics={state.mosaics}
+            onAddMosaic={(id, block) => dispatch({ type: 'ADD_MOSAIC', payload: { id, block } })}
+            onRemoveMosaic={(id, blockId) => dispatch({ type: 'REMOVE_MOSAIC', payload: { id, blockId } })}
+            onClearMosaics={(id) => dispatch({ type: 'CLEAR_MOSAICS', payload: id })}
           />
         </main>
       </div>
