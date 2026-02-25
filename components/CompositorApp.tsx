@@ -13,7 +13,7 @@ import { getTexture } from '@/lib/textureGenerators';
 import { drawLShape } from '@/lib/lShapeMask';
 import { bakeBlur } from '@/lib/blurBake';
 import { exportAll } from '@/lib/exportUtils';
-import { assignDummies } from '@/lib/dummyGenerators';
+import { assignDummies, assignDummiesByColor } from '@/lib/dummyGenerators';
 import { buildStack } from '@/lib/stackCompositor';
 
 import type { AppState, AppAction, SegmentId } from '@/lib/types';
@@ -127,6 +127,7 @@ export default function CompositorApp() {
   const [globalBlur, setGlobalBlur] = useState(0);
   const prevUrlRef = useRef('');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const colorAssignedRef = useRef(false); // true after first color-based assignment for current image
 
   // Cleanup object URL on unmount
   useEffect(() => {
@@ -153,7 +154,8 @@ export default function CompositorApp() {
     if (prevUrlRef.current) URL.revokeObjectURL(prevUrlRef.current);
     prevUrlRef.current = url;
     setThumbnailUrl(url);
-    dispatch({ type: 'SET_DUMMY_ASSIGNMENTS', payload: assignDummies() });
+    colorAssignedRef.current = false;
+    dispatch({ type: 'SET_DUMMY_ASSIGNMENTS', payload: assignDummies() }); // placeholder until processing done
     dispatch({ type: 'SET_SOURCE', payload: img });
   };
 
@@ -166,7 +168,12 @@ export default function CompositorApp() {
   };
 
   const handleReshuffle = () => {
-    dispatch({ type: 'SET_DUMMY_ASSIGNMENTS', payload: assignDummies() });
+    if (state.processedSegments.length >= 4) {
+      // Color-matched reshuffle: pick from top-10 closest animals randomly
+      dispatch({ type: 'SET_DUMMY_ASSIGNMENTS', payload: assignDummiesByColor(state.processedSegments as HTMLCanvasElement[], true) });
+    } else {
+      dispatch({ type: 'SET_DUMMY_ASSIGNMENTS', payload: assignDummies() });
+    }
   };
 
   const handleGlobalBlur = (v: number) => {
@@ -204,6 +211,16 @@ export default function CompositorApp() {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [state.rawSegments, state.configs]);
+
+  // Assign color-matched dummies once when processed segments first become available
+  useEffect(() => {
+    if (state.processedSegments.length < 4 || colorAssignedRef.current) return;
+    colorAssignedRef.current = true;
+    dispatch({
+      type: 'SET_DUMMY_ASSIGNMENTS',
+      payload: assignDummiesByColor(state.processedSegments as HTMLCanvasElement[]),
+    });
+  }, [state.processedSegments]);
 
   // Build N-layer stacks when processed segments, dummies, mosaics, or layer count change
   useEffect(() => {
