@@ -13,7 +13,7 @@ import { getTexture } from '@/lib/textureGenerators';
 import { drawLShape } from '@/lib/lShapeMask';
 import { bakeBlur } from '@/lib/blurBake';
 import { exportAll } from '@/lib/exportUtils';
-import { assignDummies, assignDummiesByColor } from '@/lib/dummyGenerators';
+import { assignDummies, assignDummiesByColor, preloadDummies } from '@/lib/dummyGenerators';
 import { buildStack } from '@/lib/stackCompositor';
 
 import type { AppState, AppAction, SegmentId } from '@/lib/types';
@@ -128,6 +128,9 @@ export default function CompositorApp() {
   const prevUrlRef = useRef('');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const colorAssignedRef = useRef(false); // true after first color-based assignment for current image
+
+  // Preload all dummy animal photos in the background at startup
+  useEffect(() => { preloadDummies(); }, []);
 
   // Cleanup object URL on unmount
   useEffect(() => {

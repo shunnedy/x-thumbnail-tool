@@ -1,4 +1,4 @@
-import { getDummy, type DummyType } from './dummyGenerators';
+import { getDummyImage } from './dummyGenerators';
 import { OUTPUT_W, OUTPUT_H, copyCanvas } from './canvasUtils';
 import type { MosaicBlock } from './types';
 
@@ -19,7 +19,7 @@ import type { MosaicBlock } from './types';
  */
 export function buildStack(
   main: HTMLCanvasElement,
-  dummies: DummyType[],
+  dummies: string[],
   mosaics: MosaicBlock[] = [],
   layers = 5
 ): HTMLCanvasElement {
@@ -47,15 +47,26 @@ export function buildStack(
   out.height = H * layers;
   const ctx = out.getContext('2d')!;
 
+  const drawDummy = (id: string, y: number) => {
+    const img = getDummyImage(id);
+    if (img) {
+      ctx.drawImage(img, 0, y, W, H);
+    } else {
+      // Fallback: gray placeholder while image loads
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(0, y, W, H);
+    }
+  };
+
   // Above dummies: indices 0..half-1
   for (let i = 0; i < half; i++) {
-    ctx.drawImage(getDummy(dummies[i]), 0, H * i, W, H);
+    drawDummy(dummies[i], H * i);
   }
   // Main layer at center
   ctx.drawImage(mainCanvas, 0, H * half, W, H);
   // Below dummies: indices 4..4+half-1
   for (let i = 0; i < half; i++) {
-    ctx.drawImage(getDummy(dummies[4 + i]), 0, H * (half + 1 + i), W, H);
+    drawDummy(dummies[4 + i], H * (half + 1 + i));
   }
 
   return out;
@@ -64,6 +75,6 @@ export function buildStack(
 /** @deprecated use buildStack */
 export const buildPentaStack = (
   main: HTMLCanvasElement,
-  dummies: DummyType[],
+  dummies: string[],
   mosaics: MosaicBlock[] = []
 ) => buildStack(main, dummies, mosaics, 5);
