@@ -23,7 +23,8 @@ import { DEFAULT_CONFIG, SEGMENT_LABELS_JA, INNER_CORNERS } from '@/lib/types';
 
 const initialState: AppState = {
   sourceImage: null,
-  cropOffset: 0.5,
+  panX: 0.5,
+  panY: 0.5,
   zoom: 1,
   stackLayers: 5,
   rawSegments: [],
@@ -47,8 +48,10 @@ function reducer(state: AppState, action: AppAction): AppState {
         stackedSegments: [],
         mosaics: [[], [], [], []],
       };
-    case 'SET_CROP_OFFSET':
-      return { ...state, cropOffset: action.payload };
+    case 'SET_PAN_X':
+      return { ...state, panX: action.payload };
+    case 'SET_PAN_Y':
+      return { ...state, panY: action.payload };
     case 'SET_ZOOM':
       return { ...state, zoom: action.payload };
     case 'SET_STACK_LAYERS':
@@ -132,12 +135,19 @@ export default function CompositorApp() {
     };
   }, []);
 
-  // Derived: which direction needs cropping (null = already 16:9)
-  const cropDirection = state.sourceImage ? (() => {
-    const ratio = state.sourceImage.naturalWidth / state.sourceImage.naturalHeight;
-    if (Math.abs(ratio - 16 / 9) < 0.005) return null;
-    return ratio > 16 / 9 ? 'horizontal' : 'vertical';
-  })() : null;
+  // Derived: which axes have room to pan (depends on image ratio and current zoom)
+  const panAvail = state.sourceImage ? (() => {
+    const W = state.sourceImage.naturalWidth;
+    const H = state.sourceImage.naturalHeight;
+    const srcRatio = W / H;
+    const targetRatio = 16 / 9;
+    const baseW = srcRatio > targetRatio ? H * targetRatio : W;
+    const baseH = srcRatio > targetRatio ? H : W / targetRatio;
+    return {
+      x: W - baseW / state.zoom > 0.5,
+      y: H - baseH / state.zoom > 0.5,
+    };
+  })() : { x: false, y: false };
 
   const handleImageLoad = (img: HTMLImageElement, url: string) => {
     if (prevUrlRef.current) URL.revokeObjectURL(prevUrlRef.current);
@@ -145,7 +155,6 @@ export default function CompositorApp() {
     setThumbnailUrl(url);
     dispatch({ type: 'SET_DUMMY_ASSIGNMENTS', payload: assignDummies() });
     dispatch({ type: 'SET_SOURCE', payload: img });
-    dispatch({ type: 'SET_CROP_OFFSET', payload: 0.5 });
   };
 
   const handleReset = () => {
@@ -167,12 +176,12 @@ export default function CompositorApp() {
     });
   };
 
-  // Slice source image into 4 raw segments (re-runs when cropOffset or zoom changes)
+  // Slice source image into 4 raw segments (re-runs when pan or zoom changes)
   useEffect(() => {
     if (!state.sourceImage) return;
-    const segments = sliceImage(state.sourceImage, state.cropOffset, state.zoom);
+    const segments = sliceImage(state.sourceImage, state.panX, state.panY, state.zoom);
     dispatch({ type: 'SET_RAW_SEGMENTS', payload: segments });
-  }, [state.sourceImage, state.cropOffset, state.zoom]);
+  }, [state.sourceImage, state.panX, state.panY, state.zoom]);
 
   // Re-process segments (debounced 150ms) on raw change or config change
   useEffect(() => {
@@ -241,47 +250,65 @@ export default function CompositorApp() {
                 onReset={handleReset}
               />
 
-              {/* Crop offset — only when image needs cropping */}
-              {hasImage && cropDirection && (
-                <div className="mt-2 bg-[#1e2732] rounded-xl border border-[#38444d] p-3">
-                  <div className="flex justify-between text-[11px] text-[#71767b] mb-1">
-                    <span>
-                      {cropDirection === 'horizontal' ? '← 左右のトリミング位置 →' : '↑ 上下のトリミング位置 ↓'}
-                    </span>
-                    <span className="text-[#e7e9ea]">
-                      {cropDirection === 'horizontal'
-                        ? ['左', '中央', '右'][Math.round(state.cropOffset * 2)]
-                        : ['上', '中央', '下'][Math.round(state.cropOffset * 2)]}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0} max={100} step={1}
-                    value={Math.round(state.cropOffset * 100)}
-                    onChange={(e) =>
-                      dispatch({ type: 'SET_CROP_OFFSET', payload: Number(e.target.value) / 100 })
-                    }
-                    className="w-full h-1 accent-[#1d9bf0] cursor-pointer"
-                  />
-                </div>
-              )}
-
-              {/* Zoom — always shown when image is loaded */}
+              {/* Zoom + Pan — shown when image is loaded */}
               {hasImage && (
-                <div className="mt-2 bg-[#1e2732] rounded-xl border border-[#38444d] p-3">
-                  <div className="flex justify-between text-[11px] text-[#71767b] mb-1">
-                    <span>ズーム倍率</span>
-                    <span className="text-[#e7e9ea]">{state.zoom.toFixed(1)}x</span>
+                <div className="mt-2 bg-[#1e2732] rounded-xl border border-[#38444d] p-3 space-y-2.5">
+                  {/* Zoom */}
+                  <div>
+                    <div className="flex justify-between text-[11px] text-[#71767b] mb-1">
+                      <span>ズーム倍率</span>
+                      <span className="text-[#e7e9ea]">{state.zoom.toFixed(1)}x</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={100} max={400} step={10}
+                      value={Math.round(state.zoom * 100)}
+                      onChange={(e) =>
+                        dispatch({ type: 'SET_ZOOM', payload: Number(e.target.value) / 100 })
+                      }
+                      className="w-full h-1 accent-[#1d9bf0] cursor-pointer"
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min={100} max={400} step={10}
-                    value={Math.round(state.zoom * 100)}
-                    onChange={(e) =>
-                      dispatch({ type: 'SET_ZOOM', payload: Number(e.target.value) / 100 })
-                    }
-                    className="w-full h-1 accent-[#1d9bf0] cursor-pointer"
-                  />
+                  {/* X pan */}
+                  {panAvail.x && (
+                    <div>
+                      <div className="flex justify-between text-[11px] text-[#71767b] mb-1">
+                        <span>← 水平位置 →</span>
+                        <span className="text-[#e7e9ea]">
+                          {['左端', '左寄り', '中央', '右寄り', '右端'][Math.round(state.panX * 4)]}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0} max={100} step={1}
+                        value={Math.round(state.panX * 100)}
+                        onChange={(e) =>
+                          dispatch({ type: 'SET_PAN_X', payload: Number(e.target.value) / 100 })
+                        }
+                        className="w-full h-1 accent-[#1d9bf0] cursor-pointer"
+                      />
+                    </div>
+                  )}
+                  {/* Y pan */}
+                  {panAvail.y && (
+                    <div>
+                      <div className="flex justify-between text-[11px] text-[#71767b] mb-1">
+                        <span>↑ 垂直位置 ↓</span>
+                        <span className="text-[#e7e9ea]">
+                          {['上端', '上寄り', '中央', '下寄り', '下端'][Math.round(state.panY * 4)]}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0} max={100} step={1}
+                        value={Math.round(state.panY * 100)}
+                        onChange={(e) =>
+                          dispatch({ type: 'SET_PAN_Y', payload: Number(e.target.value) / 100 })
+                        }
+                        className="w-full h-1 accent-[#1d9bf0] cursor-pointer"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>

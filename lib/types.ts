@@ -41,8 +41,9 @@ export interface MosaicBlock {
 
 export interface AppState {
   sourceImage: HTMLImageElement | null;
-  cropOffset: number;                       // 0=top/left, 0.5=center, 1=bottom/right
-  zoom: number;                             // 1.0=normal, 2.0=2x zoom-in (centered)
+  panX: number;                             // 0=left, 0.5=center, 1=right
+  panY: number;                             // 0=top,  0.5=center, 1=bottom
+  zoom: number;                             // 1.0=normal, 2.0=2x zoom-in
   stackLayers: 3 | 5 | 7 | 9;              // odd-only: X crops center → main is always visible
   rawSegments: HTMLCanvasElement[];
   processedSegments: HTMLCanvasElement[];   // 1280×720 (texture + blur, NO mosaics)
@@ -56,7 +57,8 @@ export interface AppState {
 
 export type AppAction =
   | { type: 'SET_SOURCE'; payload: HTMLImageElement }
-  | { type: 'SET_CROP_OFFSET'; payload: number }
+  | { type: 'SET_PAN_X'; payload: number }
+  | { type: 'SET_PAN_Y'; payload: number }
   | { type: 'SET_ZOOM'; payload: number }
   | { type: 'SET_STACK_LAYERS'; payload: 3 | 5 | 7 | 9 }
   | { type: 'SET_RAW_SEGMENTS'; payload: HTMLCanvasElement[] }

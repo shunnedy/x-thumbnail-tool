@@ -3,40 +3,47 @@ export const OUTPUT_H = 720;
 
 /**
  * Slices the source image into 4 equal quadrants (TL, TR, BL, BR).
- * Takes a 16:9 crop using the given offset (0=top/left, 0.5=center, 1=bottom/right).
- * Each output canvas is OUTPUT_W × OUTPUT_H (1280×720).
+ *
+ * Model:
+ *   1. Compute the largest 16:9 "base" crop that fits inside the source image.
+ *   2. Apply zoom: viewport = base / zoom  (zoom=2 → viewport is half the base area).
+ *   3. Pan the viewport within the source image using panX/panY (0=min, 0.5=center, 1=max).
+ *      - Available X range: imageW − viewW  (positive when image is wider than viewport)
+ *      - Available Y range: imageH − viewH  (positive when image is taller than viewport)
+ *   4. Slice viewport into 4 equal quadrants, each rendered to OUTPUT_W × OUTPUT_H.
+ *
+ * This means:
+ *   - A wider-than-16:9 image at zoom=1 allows only X panning (Y range = 0).
+ *   - A taller-than-16:9 image at zoom=1 allows only Y panning (X range = 0).
+ *   - Any image at zoom>1 allows panning in both X and Y.
  */
-export function sliceImage(img: HTMLImageElement, cropOffset = 0.5, zoom = 1.0): HTMLCanvasElement[] {
+export function sliceImage(img: HTMLImageElement, panX = 0.5, panY = 0.5, zoom = 1.0): HTMLCanvasElement[] {
   const W = img.naturalWidth;
   const H = img.naturalHeight;
-
-  // Crop to 16:9 using the provided offset
   const targetRatio = 16 / 9;
   const srcRatio = W / H;
 
-  let cropW: number, cropH: number;
-  let cropX: number, cropY: number;
+  // Largest 16:9 base crop that fits inside the source image
+  let baseW: number, baseH: number;
   if (srcRatio > targetRatio) {
-    // Wider than 16:9 → crop sides; offset controls left↔right
-    cropH = H;
-    cropW = H * targetRatio;
-    cropX = (W - cropW) * cropOffset;
-    cropY = 0;
+    baseH = H;
+    baseW = H * targetRatio;
   } else {
-    // Taller than 16:9 → crop top/bottom; offset controls top↔bottom
-    cropW = W;
-    cropH = W / targetRatio;
-    cropX = 0;
-    cropY = (H - cropH) * cropOffset;
+    baseW = W;
+    baseH = W / targetRatio;
   }
 
-  // Apply zoom: shrink the sampled area from the center of the 16:9 crop
-  const zoomW = cropW / zoom;
-  const zoomH = cropH / zoom;
-  const zoomX = cropX + (cropW - zoomW) / 2;
-  const zoomY = cropY + (cropH - zoomH) / 2;
-  const halfW = zoomW / 2;
-  const halfH = zoomH / 2;
+  // Viewport (zoom shrinks the sampled area)
+  const viewW = baseW / zoom;
+  const viewH = baseH / zoom;
+
+  // Pan within the source image (clamp implicit via panX/panY ∈ [0,1])
+  const availX = W - viewW;
+  const availY = H - viewH;
+  const viewX = availX * panX;
+  const viewY = availY * panY;
+  const halfW = viewW / 2;
+  const halfH = viewH / 2;
 
   // [col, row] for each segment: 0=TL, 1=TR, 2=BL, 3=BR
   const quadrants: [number, number][] = [
@@ -53,7 +60,7 @@ export function sliceImage(img: HTMLImageElement, cropOffset = 0.5, zoom = 1.0):
     const ctx = canvas.getContext('2d')!;
     ctx.drawImage(
       img,
-      zoomX + col * halfW, zoomY + row * halfH, // source xy
+      viewX + col * halfW, viewY + row * halfH, // source xy
       halfW, halfH,                               // source size
       0, 0,                                       // dest xy
       OUTPUT_W, OUTPUT_H                          // dest size
