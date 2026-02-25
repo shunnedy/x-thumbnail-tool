@@ -24,7 +24,7 @@ export function SegmentCard({ id, labelJa, config, processedCanvas, onChange }: 
   useEffect(() => {
     if (!thumbRef.current || !processedCanvas) return;
     const ctx = thumbRef.current.getContext('2d');
-    if (ctx) ctx.drawImage(processedCanvas, 0, 0, 96, 96);
+    if (ctx) ctx.drawImage(processedCanvas, 0, 0, 128, 72);
   }, [processedCanvas]);
 
   return (
@@ -34,8 +34,8 @@ export function SegmentCard({ id, labelJa, config, processedCanvas, onChange }: 
         <div className="flex-shrink-0 text-center">
           <canvas
             ref={thumbRef}
-            width={96}
-            height={96}
+            width={128}
+            height={72}
             className="rounded-lg bg-[#253341] block"
           />
           <span className="text-[10px] text-[#71767b] mt-1 block">

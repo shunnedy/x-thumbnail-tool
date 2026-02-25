@@ -17,23 +17,22 @@ export function GridPreview({ processedSegments, stackedSegments, isProcessing }
   const hasProcessed = processedSegments.length >= 4;
   const hasStacked = stackedSegments.length >= 4;
 
-  // X-preview: center crops from processedSegments (1080×1080)
+  // X-preview: 16:9 thumbnails from processedSegments (1280×720 → 480×270)
   useEffect(() => {
     if (!hasProcessed) return;
     const urls = processedSegments.map((canvas) => {
       const p = document.createElement('canvas');
-      p.width = 540; p.height = 540;
-      p.getContext('2d')!.drawImage(canvas, 0, 0, 540, 540);
+      p.width = 480; p.height = 270;
+      p.getContext('2d')!.drawImage(canvas, 0, 0, 480, 270);
       return p.toDataURL('image/jpeg', 0.88);
     });
     setXUrls(urls);
   }, [processedSegments, hasProcessed]);
 
-  // Stack preview: scaled-down 5-layer images
+  // Stack preview: scaled-down 5-layer images (1280×3600 → 160×450)
   useEffect(() => {
     if (!hasStacked) return;
-    // Preview at 140×700 (1:5 ratio)
-    const W = 140, H = 700;
+    const W = 160, H = 450;
     const urls = stackedSegments.map((stack) => {
       const p = document.createElement('canvas');
       p.width = W; p.height = H;
@@ -97,29 +96,61 @@ function XTimelineView({ imageUrls, hasImages }: { imageUrls: string[]; hasImage
             </div>
           </div>
 
-          {/* 2×2 grid */}
+          {/*
+            X 4-image grid: 16:9 overall container
+            Left column:  photo[0]=TL (top), photo[2]=BL (bottom)
+            Right column: photo[1]=TR (top), photo[3]=BR (bottom)
+          */}
           <div
             className="rounded-2xl overflow-hidden"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gridTemplateRows: '1fr 1fr',
-              gap: '2px',
-              aspectRatio: '1 / 1',
-              background: '#38444d',
-            }}
+            style={{ position: 'relative', paddingBottom: '56.25%', background: '#38444d' }}
           >
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="relative bg-[#253341] overflow-hidden">
-                {hasImages && imageUrls[i] ? (
-                  <img src={imageUrls[i]} alt={`Segment ${i + 1}`} className="w-full h-full object-cover block" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-[#38444d] text-2xl font-bold">{i + 1}</span>
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                gap: '2px',
+              }}
+            >
+              {/* Left column */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                {[0, 2].map((i) => (
+                  <div key={i} style={{ flex: 1, overflow: 'hidden', background: '#253341' }}>
+                    {hasImages && imageUrls[i] ? (
+                      <img
+                        src={imageUrls[i]}
+                        alt={`Segment ${i + 1}`}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span className="text-[#38444d] text-2xl font-bold">{i === 0 ? 1 : 3}</span>
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
-            ))}
+
+              {/* Right column */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                {[1, 3].map((i) => (
+                  <div key={i} style={{ flex: 1, overflow: 'hidden', background: '#253341' }}>
+                    {hasImages && imageUrls[i] ? (
+                      <img
+                        src={imageUrls[i]}
+                        alt={`Segment ${i + 1}`}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span className="text-[#38444d] text-2xl font-bold">{i === 1 ? 2 : 4}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Engagement */}
@@ -185,7 +216,8 @@ function StackView({ stackUrls, hasImages }: { stackUrls: string[]; hasImages: b
             <div className="text-center text-[#71767b] text-[10px] mb-1.5 font-medium">
               ファイル {i + 1}
             </div>
-            <div className="relative w-full" style={{ paddingBottom: '500%' }}>
+            {/* paddingBottom = (720×5/1280)×100 = 281.25% */}
+            <div className="relative w-full" style={{ paddingBottom: '281.25%' }}>
               <div className="absolute inset-0 rounded-lg overflow-hidden bg-[#253341]">
                 {hasImages && stackUrls[i] ? (
                   <>
@@ -245,8 +277,8 @@ function StackView({ stackUrls, hasImages }: { stackUrls: string[]; hasImages: b
       {hasImages && (
         <div className="mt-4 bg-[#1e2732] rounded-xl border border-[#38444d] p-3 text-center">
           <p className="text-[#71767b] text-xs">
-            書き出し解像度: <span className="text-[#e7e9ea] font-medium">1080 × 5400 px</span>
-            {' '}(1:5 アスペクト比)
+            書き出し解像度: <span className="text-[#e7e9ea] font-medium">1280 × 3600 px</span>
+            {' '}(16:45 アスペクト比)
           </p>
         </div>
       )}

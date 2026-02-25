@@ -8,7 +8,7 @@ import { SegmentCard } from './SegmentCard';
 import { GridPreview } from './GridPreview';
 import { ExportButton } from './ExportButton';
 
-import { sliceImage, copyCanvas, OUTPUT_SIZE } from '@/lib/canvasUtils';
+import { sliceImage, copyCanvas, OUTPUT_W, OUTPUT_H } from '@/lib/canvasUtils';
 import { getTexture } from '@/lib/textureGenerators';
 import { drawLShape } from '@/lib/lShapeMask';
 import { bakeBlur } from '@/lib/blurBake';
@@ -82,7 +82,7 @@ async function processAll(
 
       if (cfg.textureType !== 'none') {
         const tex = getTexture(cfg.textureType);
-        drawLShape(ctx, OUTPUT_SIZE, OUTPUT_SIZE, corner, cfg.textureArmPx, tex, cfg.textureOpacity);
+        drawLShape(ctx, OUTPUT_W, OUTPUT_H, corner, cfg.textureArmPx, tex, cfg.textureOpacity);
       }
 
       return bakeBlur(work, cfg.blurPx);
