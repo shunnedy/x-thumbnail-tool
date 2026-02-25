@@ -29,10 +29,12 @@ export const DEFAULT_CONFIG: SegmentConfig = {
 };
 
 export interface FilterConfig {
-  grainIntensity: number;  // 0–100
-  colorTemp: number;       // -100 (cool/blue) to +100 (warm/orange)
-  saturation: number;      // -100 (grey) to +100 (vivid)
-  edgeSoftening: number;   // 0–100
+  grainIntensity: number;        // 0–100
+  colorTemp: number;             // -100 (cool/blue) to +100 (warm/orange)
+  saturation: number;            // -100 (grey) to +100 (vivid)
+  edgeSoftening: number;         // 0–100
+  animalContextEnabled: boolean; // Animal Texture Match on/off
+  animalContextStrength: number; // 0–100
 }
 
 export const DEFAULT_FILTER_CONFIG: FilterConfig = {
@@ -40,6 +42,8 @@ export const DEFAULT_FILTER_CONFIG: FilterConfig = {
   colorTemp: 0,
   saturation: 0,
   edgeSoftening: 0,
+  animalContextEnabled: false,
+  animalContextStrength: 50,
 };
 
 export interface MosaicBlock {

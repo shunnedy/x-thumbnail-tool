@@ -1,21 +1,26 @@
 import type { FilterConfig } from '@/lib/types';
+import { applyAnimalContext } from '@/lib/animalContextFilter';
 
 export function isFilterActive(config: FilterConfig): boolean {
   return (
     config.grainIntensity !== 0 ||
     config.colorTemp !== 0 ||
     config.saturation !== 0 ||
-    config.edgeSoftening !== 0
+    config.edgeSoftening !== 0 ||
+    config.animalContextEnabled
   );
 }
 
 /**
  * Apply aesthetic filters to a source canvas and return a new canvas.
  * The source canvas is not modified.
+ * @param animalTargetColor - Dominant color averaged from assigned dummy photos;
+ *   required for the Animal Context Filter (color harmony + fur texture).
  */
 export function applyFilters(
   source: HTMLCanvasElement,
-  config: FilterConfig
+  config: FilterConfig,
+  animalTargetColor?: { r: number; g: number; b: number }
 ): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = source.width;
@@ -35,6 +40,11 @@ export function applyFilters(
   // Edge vignette (canvas gradient pass)
   if (edgeSoftening > 0) {
     drawEdgeVignette(ctx, canvas.width, canvas.height, edgeSoftening);
+  }
+
+  // Animal Context Filter (color harmony + fur texture overlay)
+  if (config.animalContextEnabled && animalTargetColor) {
+    applyAnimalContext(ctx, canvas.width, canvas.height, animalTargetColor, config.animalContextStrength);
   }
 
   return canvas;

@@ -13,6 +13,13 @@ interface FilterPanelProps {
   onFilterModeChange: (mode: 'global' | 'per-segment') => void;
   onGlobalFilterChange: (partial: Partial<FilterConfig>) => void;
   onSegmentFilterChange: (id: SegmentId, partial: Partial<FilterConfig>) => void;
+  /** Average dominant color from assigned dummy photos, per segment. */
+  animalTargetColors?: [
+    { r: number; g: number; b: number },
+    { r: number; g: number; b: number },
+    { r: number; g: number; b: number },
+    { r: number; g: number; b: number },
+  ];
 }
 
 const SEGMENT_LABELS = ['左上', '右上', '左下', '右下'] as const;
@@ -24,6 +31,7 @@ export function FilterPanel({
   onFilterModeChange,
   onGlobalFilterChange,
   onSegmentFilterChange,
+  animalTargetColors,
 }: FilterPanelProps) {
   const [expanded, setExpanded] = useState(true);
   const [activeSegment, setActiveSegment] = useState<SegmentId>(0);
@@ -147,6 +155,17 @@ export function FilterPanel({
             />
           </div>
 
+          {/* ── Animal Texture Match ── */}
+          <div className="border-t border-[#38444d] pt-3">
+            <AnimalContextSection
+              config={currentConfig}
+              onChange={handleChange}
+              targetColors={animalTargetColors}
+              filterMode={filterMode}
+              activeSegment={activeSegment}
+            />
+          </div>
+
           {/* Reset */}
           {isFilterActive(currentConfig) && (
             <button
@@ -158,6 +177,100 @@ export function FilterPanel({
             </button>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Animal Context Section ────────────────────────────────────────────────
+
+interface AnimalContextSectionProps {
+  config: FilterConfig;
+  onChange: (partial: Partial<FilterConfig>) => void;
+  targetColors?: FilterPanelProps['animalTargetColors'];
+  filterMode: 'global' | 'per-segment';
+  activeSegment: SegmentId;
+}
+
+function AnimalContextSection({
+  config,
+  onChange,
+  targetColors,
+  filterMode,
+  activeSegment,
+}: AnimalContextSectionProps) {
+  const enabled = config.animalContextEnabled;
+
+  // Color swatches: global → show all 4; per-segment → show active one
+  const swatches =
+    filterMode === 'global'
+      ? targetColors
+      : targetColors
+        ? [targetColors[activeSegment]]
+        : undefined;
+
+  return (
+    <div className="space-y-2">
+      {/* Header row with toggle */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-semibold text-[#e7e9ea]">
+            Animal Texture Match
+          </span>
+          {enabled && (
+            <span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded-full font-medium">
+              ON
+            </span>
+          )}
+        </div>
+        {/* Toggle switch */}
+        <button
+          onClick={() => onChange({ animalContextEnabled: !enabled })}
+          className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${
+            enabled ? 'bg-amber-500' : 'bg-[#38444d]'
+          }`}
+          aria-label="Animal Texture Match toggle"
+        >
+          <span
+            className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+              enabled ? 'translate-x-[18px]' : 'translate-x-0.5'
+            }`}
+          />
+        </button>
+      </div>
+
+      {/* Description */}
+      <p className="text-[9px] text-[#71767b] leading-relaxed">
+        動物パレットの色調と毛並み質感をメイン画像に微量合成し、コラージュ全体の統一感を高めます。
+      </p>
+
+      {/* Color palette preview */}
+      {swatches && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] text-[#38444d]">動物パレット</span>
+          <div className="flex gap-1">
+            {swatches.map((c, i) => (
+              <div
+                key={i}
+                title={`r:${c.r} g:${c.g} b:${c.b}`}
+                className="w-3 h-3 rounded-full border border-[#38444d]/60 flex-shrink-0"
+                style={{ background: `rgb(${c.r},${c.g},${c.b})` }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Strength slider — only when enabled */}
+      {enabled && (
+        <FilterSlider
+          label="強さ"
+          hint="色調同調 0–1.5% · 毛並みテクスチャ 0–2%"
+          value={config.animalContextStrength}
+          min={0} max={100}
+          onChange={(v) => onChange({ animalContextStrength: v })}
+          displayFn={(v) => `${v}`}
+        />
       )}
     </div>
   );

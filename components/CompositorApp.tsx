@@ -1,6 +1,6 @@
 'use client';
 
-import { useReducer, useEffect, useRef, useState } from 'react';
+import { useReducer, useEffect, useRef, useState, useMemo } from 'react';
 import { Grid2X2, Shuffle } from 'lucide-react';
 
 import { DropZone } from './DropZone';
@@ -17,6 +17,7 @@ import { exportAll } from '@/lib/exportUtils';
 import { assignDummies, assignDummiesByColor, preloadDummies } from '@/lib/dummyGenerators';
 import { buildStack } from '@/lib/stackCompositor';
 import { applyFilters } from '@/lib/filterUtils';
+import { computeAnimalTargetColor } from '@/lib/animalContextFilter';
 
 import type { AppState, AppAction, SegmentId } from '@/lib/types';
 import { DEFAULT_CONFIG, DEFAULT_FILTER_CONFIG, SEGMENT_LABELS_JA, INNER_CORNERS } from '@/lib/types';
@@ -245,6 +246,17 @@ export default function CompositorApp() {
     });
   }, [state.processedSegments]);
 
+  // Per-segment animal palette target colors (averaged dominant color of assigned dummies)
+  const animalTargetColors = useMemo(() => {
+    if (state.dummyAssignments.length < 4) return undefined;
+    return state.dummyAssignments.map(computeAnimalTargetColor) as [
+      { r: number; g: number; b: number },
+      { r: number; g: number; b: number },
+      { r: number; g: number; b: number },
+      { r: number; g: number; b: number },
+    ];
+  }, [state.dummyAssignments]);
+
   // Apply aesthetic filters (debounced 80ms) to produce filteredSegments
   useEffect(() => {
     if (state.processedSegments.length === 0) return;
@@ -255,12 +267,12 @@ export default function CompositorApp() {
           state.filterMode === 'global'
             ? state.globalFilter
             : state.segmentFilters[i as SegmentId];
-        return applyFilters(canvas, config);
+        return applyFilters(canvas, config, animalTargetColors?.[i]);
       });
       dispatch({ type: 'SET_FILTERED_SEGMENTS', payload: filtered });
     }, 80);
     return () => { if (filterTimerRef.current) clearTimeout(filterTimerRef.current); };
-  }, [state.processedSegments, state.filterMode, state.globalFilter, state.segmentFilters]);
+  }, [state.processedSegments, state.filterMode, state.globalFilter, state.segmentFilters, animalTargetColors]);
 
   // Build N-layer stacks when filteredSegments, dummies, mosaics, or layer count change
   useEffect(() => {
@@ -421,6 +433,7 @@ export default function CompositorApp() {
                   onSegmentFilterChange={(id, partial) =>
                     dispatch({ type: 'SET_SEGMENT_FILTER', payload: { id, filter: partial } })
                   }
+                  animalTargetColors={animalTargetColors}
                 />
               </div>
             )}
