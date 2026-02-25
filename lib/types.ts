@@ -45,7 +45,7 @@ export interface AppState {
   rawSegments: HTMLCanvasElement[];
   processedSegments: HTMLCanvasElement[];   // 1280×720 (texture + blur, NO mosaics)
   stackedSegments: HTMLCanvasElement[];     // 1280×3600 (5-layer penta-stack, mosaics baked)
-  dummyAssignments: string[][];             // [4 segments][photo IDs]
+  dummyAssignments: number[][];             // [4 segments][photo IDs]
   mosaics: [MosaicBlock[], MosaicBlock[], MosaicBlock[], MosaicBlock[]];
   configs: [SegmentConfig, SegmentConfig, SegmentConfig, SegmentConfig];
   isProcessing: boolean;
@@ -61,7 +61,7 @@ export type AppAction =
   | { type: 'SET_RAW_SEGMENTS'; payload: HTMLCanvasElement[] }
   | { type: 'SET_PROCESSED_SEGMENTS'; payload: HTMLCanvasElement[] }
   | { type: 'SET_STACKED_SEGMENTS'; payload: HTMLCanvasElement[] }
-  | { type: 'SET_DUMMY_ASSIGNMENTS'; payload: string[][] }
+  | { type: 'SET_DUMMY_ASSIGNMENTS'; payload: number[][] }
   | { type: 'ADD_MOSAIC'; payload: { id: SegmentId; block: MosaicBlock } }
   | { type: 'REMOVE_MOSAIC'; payload: { id: SegmentId; blockId: string } }
   | { type: 'CLEAR_MOSAICS'; payload: SegmentId }

@@ -19,7 +19,7 @@ import type { MosaicBlock } from './types';
  */
 export function buildStack(
   main: HTMLCanvasElement,
-  dummies: string[],
+  dummies: number[],
   mosaics: MosaicBlock[] = [],
   layers = 5
 ): HTMLCanvasElement {
@@ -47,7 +47,7 @@ export function buildStack(
   out.height = H * layers;
   const ctx = out.getContext('2d')!;
 
-  const drawDummy = (id: string, y: number) => {
+  const drawDummy = (id: number, y: number) => {
     const img = getDummyImage(id);
     if (img) {
       ctx.drawImage(img, 0, y, W, H);
@@ -75,6 +75,6 @@ export function buildStack(
 /** @deprecated use buildStack */
 export const buildPentaStack = (
   main: HTMLCanvasElement,
-  dummies: string[],
+  dummies: number[],
   mosaics: MosaicBlock[] = []
 ) => buildStack(main, dummies, mosaics, 5);
