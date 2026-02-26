@@ -23,7 +23,7 @@ export interface SegmentConfig {
 
 export const DEFAULT_CONFIG: SegmentConfig = {
   blurPx: 0,
-  textureType: 'nature',
+  textureType: 'none',
   textureOpacity: 0.75,
   textureArmPx: 100,
 };

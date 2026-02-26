@@ -221,14 +221,13 @@ function ColorGradeSection({ config, onChange }: ColorGradeSectionProps) {
         {/* Toggle */}
         <button
           onClick={() => onChange({ colorGradeEnabled: !enabled })}
-          className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0`}
+          className="relative w-9 h-5 rounded-full transition-colors flex-shrink-0"
           style={{ background: enabled ? config.colorGradeColor : '#38444d' }}
           aria-label="Color grade toggle"
         >
           <span
-            className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-              enabled ? 'translate-x-[18px]' : 'translate-x-0.5'
-            }`}
+            className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform"
+            style={{ transform: enabled ? 'translateX(18px)' : 'translateX(2px)' }}
           />
         </button>
       </div>
@@ -370,9 +369,8 @@ function AnimalContextSection({
           aria-label="Animal Texture Match toggle"
         >
           <span
-            className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-              enabled ? 'translate-x-[18px]' : 'translate-x-0.5'
-            }`}
+            className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform"
+            style={{ transform: enabled ? 'translateX(18px)' : 'translateX(2px)' }}
           />
         </button>
       </div>
