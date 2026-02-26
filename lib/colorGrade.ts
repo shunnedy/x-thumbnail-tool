@@ -73,9 +73,9 @@ export function applyColorGrade(
   const { data } = imgData;
 
   for (let i = 0; i < data.length; i += 4) {
-    let r = data[i];
-    let g = data[i + 1];
-    let b = data[i + 2];
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
 
     let blend: number;
 
