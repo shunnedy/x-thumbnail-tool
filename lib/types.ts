@@ -35,6 +35,10 @@ export interface FilterConfig {
   edgeSoftening: number;         // 0–100
   animalContextEnabled: boolean; // Animal Texture Match on/off
   animalContextStrength: number; // 0–100
+  colorGradeEnabled: boolean;    // Tinted lighting on/off
+  colorGradeColor: string;       // hex e.g. "#FF6B9D"
+  colorGradeStrength: number;    // 0–100 (natural: 10–40)
+  colorGradeMode: 'lighting' | 'filter';
 }
 
 export const DEFAULT_FILTER_CONFIG: FilterConfig = {
@@ -44,6 +48,10 @@ export const DEFAULT_FILTER_CONFIG: FilterConfig = {
   edgeSoftening: 0,
   animalContextEnabled: false,
   animalContextStrength: 50,
+  colorGradeEnabled: false,
+  colorGradeColor: '#FF6B9D',
+  colorGradeStrength: 35,
+  colorGradeMode: 'lighting',
 };
 
 export interface MosaicBlock {

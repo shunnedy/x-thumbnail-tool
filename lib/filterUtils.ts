@@ -1,5 +1,6 @@
 import type { FilterConfig } from '@/lib/types';
 import { applyAnimalContext } from '@/lib/animalContextFilter';
+import { applyColorGrade } from '@/lib/colorGrade';
 
 export function isFilterActive(config: FilterConfig): boolean {
   return (
@@ -7,7 +8,8 @@ export function isFilterActive(config: FilterConfig): boolean {
     config.colorTemp !== 0 ||
     config.saturation !== 0 ||
     config.edgeSoftening !== 0 ||
-    config.animalContextEnabled
+    config.animalContextEnabled ||
+    config.colorGradeEnabled
   );
 }
 
@@ -45,6 +47,11 @@ export function applyFilters(
   // Animal Context Filter (color harmony + fur texture overlay)
   if (config.animalContextEnabled && animalTargetColor) {
     applyAnimalContext(ctx, canvas.width, canvas.height, animalTargetColor, config.animalContextStrength);
+  }
+
+  // Color grade (tinted room lighting / flat filter)
+  if (config.colorGradeEnabled) {
+    applyColorGrade(ctx, canvas.width, canvas.height, config.colorGradeColor, config.colorGradeStrength, config.colorGradeMode);
   }
 
   return canvas;

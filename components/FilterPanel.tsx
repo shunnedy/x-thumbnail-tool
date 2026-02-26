@@ -5,6 +5,7 @@ import { Sparkles, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
 import type { FilterConfig, SegmentId } from '@/lib/types';
 import { DEFAULT_FILTER_CONFIG } from '@/lib/types';
 import { isFilterActive } from '@/lib/filterUtils';
+import { COLOR_GRADE_PRESETS } from '@/lib/colorGrade';
 
 interface FilterPanelProps {
   filterMode: 'global' | 'per-segment';
@@ -155,6 +156,11 @@ export function FilterPanel({
             />
           </div>
 
+          {/* ── Color Grade (tinted lighting) ── */}
+          <div className="border-t border-[#38444d] pt-3">
+            <ColorGradeSection config={currentConfig} onChange={handleChange} />
+          </div>
+
           {/* ── Animal Texture Match ── */}
           <div className="border-t border-[#38444d] pt-3">
             <AnimalContextSection
@@ -177,6 +183,138 @@ export function FilterPanel({
             </button>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Color Grade Section ──────────────────────────────────────────────────
+
+interface ColorGradeSectionProps {
+  config: FilterConfig;
+  onChange: (partial: Partial<FilterConfig>) => void;
+}
+
+function ColorGradeSection({ config, onChange }: ColorGradeSectionProps) {
+  const enabled = config.colorGradeEnabled;
+
+  return (
+    <div className="space-y-2.5">
+      {/* Header row with toggle */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-semibold text-[#e7e9ea]">
+            カラーグレーディング
+          </span>
+          {enabled && (
+            <span
+              className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+              style={{
+                background: config.colorGradeColor + '33',
+                color: config.colorGradeColor,
+              }}
+            >
+              ON
+            </span>
+          )}
+        </div>
+        {/* Toggle */}
+        <button
+          onClick={() => onChange({ colorGradeEnabled: !enabled })}
+          className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0`}
+          style={{ background: enabled ? config.colorGradeColor : '#38444d' }}
+          aria-label="Color grade toggle"
+        >
+          <span
+            className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+              enabled ? 'translate-x-[18px]' : 'translate-x-0.5'
+            }`}
+          />
+        </button>
+      </div>
+
+      {enabled && (
+        <>
+          {/* Blend mode toggle */}
+          <div className="flex rounded-lg overflow-hidden border border-[#38444d] text-[10px]">
+            <ModeBtn
+              active={config.colorGradeMode === 'lighting'}
+              onClick={() => onChange({ colorGradeMode: 'lighting' })}
+            >
+              照明モード
+            </ModeBtn>
+            <ModeBtn
+              active={config.colorGradeMode === 'filter'}
+              onClick={() => onChange({ colorGradeMode: 'filter' })}
+            >
+              フィルターモード
+            </ModeBtn>
+          </div>
+
+          {/* Mode description */}
+          <p className="text-[9px] text-[#71767b] leading-relaxed">
+            {config.colorGradeMode === 'lighting'
+              ? '明るい部分に色が乗る。ポートレートにカラー照明が当たった自然な仕上がり。'
+              : '全体に均一にフィルターがかかる。SNS映えするカラートーン。'}
+          </p>
+
+          {/* Preset swatches */}
+          <div className="flex gap-1.5">
+            {COLOR_GRADE_PRESETS.map((p) => {
+              const active = config.colorGradeColor.toUpperCase() === p.hex.toUpperCase();
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => onChange({ colorGradeColor: p.hex })}
+                  title={p.hint}
+                  className={`flex-1 flex flex-col items-center gap-1 py-1.5 rounded-lg transition-all border ${
+                    active
+                      ? 'border-white/40 bg-white/5'
+                      : 'border-[#38444d] hover:border-[#71767b]'
+                  }`}
+                >
+                  <div
+                    className="w-5 h-5 rounded-full border border-white/20"
+                    style={{ background: p.hex }}
+                  />
+                  <span className={`text-[9px] font-medium ${active ? 'text-white' : 'text-[#71767b]'}`}>
+                    {p.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Custom color row */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-[#71767b] flex-shrink-0">カスタム</span>
+            <label className="relative cursor-pointer flex-shrink-0">
+              <div
+                className="w-7 h-7 rounded-lg border-2 border-[#38444d] hover:border-[#71767b] transition-colors"
+                style={{ background: config.colorGradeColor }}
+              />
+              <input
+                type="color"
+                value={config.colorGradeColor}
+                onChange={(e) => onChange({ colorGradeColor: e.target.value })}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+            </label>
+            <span className="text-[10px] text-[#38444d] font-mono">
+              {config.colorGradeColor.toUpperCase()}
+            </span>
+          </div>
+
+          {/* Strength slider */}
+          <FilterSlider
+            label="強さ"
+            hint="自然な印象: 10〜40 · ドラマチック: 50〜80"
+            value={config.colorGradeStrength}
+            min={0} max={100}
+            onChange={(v) => onChange({ colorGradeStrength: v })}
+            displayFn={(v) => `${v}`}
+          />
+        </>
       )}
     </div>
   );
